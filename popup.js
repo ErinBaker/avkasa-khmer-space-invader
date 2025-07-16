@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Get UI elements
   const enableToggle = document.getElementById('enableToggle');
   const autoRunToggle = document.getElementById('autoRunToggle');
+  const injectSpacesToggle = document.getElementById('injectSpacesToggle');
   const fixNowButton = document.getElementById('fixNowButton');
   const statusText = document.getElementById('statusText');
   const statusIndicator = document.getElementById('statusIndicator');
@@ -17,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log('[KhmerSpaceFixer] UI elements found:', {
     enableToggle: !!enableToggle,
     autoRunToggle: !!autoRunToggle,
+    injectSpacesToggle: !!injectSpacesToggle,
     fixNowButton: !!fixNowButton,
     statusText: !!statusText,
     statusIndicator: !!statusIndicator,
@@ -32,8 +34,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (response) {
           enableToggle.checked = response.enabled;
           autoRunToggle.checked = response.autoRun;
+          injectSpacesToggle.checked = response.injectSpaces;
           updateStatus(response.enabled);
-          console.log('[KhmerSpaceFixer] Settings loaded - enabled:', response.enabled, 'autoRun:', response.autoRun);
+          console.log('[KhmerSpaceFixer] Settings loaded - enabled:', response.enabled, 'autoRun:', response.autoRun, 'injectSpaces:', response.injectSpaces);
           resolve();
         } else {
           console.error('[KhmerSpaceFixer] No response from getSettings');
@@ -52,12 +55,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       statusIndicator.classList.remove('inactive');
       fixNowButton.disabled = false;
       autoRunToggle.disabled = false;
+      injectSpacesToggle.disabled = false;
     } else {
       statusText.textContent = 'Extension is Inactive';
       statusIndicator.classList.remove('active');
       statusIndicator.classList.add('inactive');
       fixNowButton.disabled = true;
       autoRunToggle.disabled = true;
+      injectSpacesToggle.disabled = true;
     }
   }
 
@@ -79,13 +84,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Save settings
-  async function saveSettings(enabled, autoRun) {
-    console.log('[KhmerSpaceFixer] Saving settings - enabled:', enabled, 'autoRun:', autoRun);
+  async function saveSettings(enabled, autoRun, injectSpaces) {
+    console.log('[KhmerSpaceFixer] Saving settings - enabled:', enabled, 'autoRun:', autoRun, 'injectSpaces:', injectSpaces);
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({
         action: 'updateSettings',
         enabled: enabled,
-        autoRun: autoRun
+        autoRun: autoRun,
+        injectSpaces: injectSpaces
       }, (response) => {
         console.log('[KhmerSpaceFixer] Save settings response:', response);
         resolve();
@@ -97,10 +103,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   enableToggle.addEventListener('change', async () => {
     const enabled = enableToggle.checked;
     const autoRun = autoRunToggle.checked;
+    const injectSpaces = injectSpacesToggle.checked;
     
     console.log('[KhmerSpaceFixer] Enable toggle changed:', enabled);
     
-    await saveSettings(enabled, autoRun);
+    await saveSettings(enabled, autoRun, injectSpaces);
     updateStatus(enabled);
     
     // If enabling and auto-run is on, trigger fix on current tab
@@ -117,10 +124,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   autoRunToggle.addEventListener('change', async () => {
     const enabled = enableToggle.checked;
     const autoRun = autoRunToggle.checked;
+    const injectSpaces = injectSpacesToggle.checked;
     
     console.log('[KhmerSpaceFixer] Auto-run toggle changed:', autoRun);
     
-    await saveSettings(enabled, autoRun);
+    await saveSettings(enabled, autoRun, injectSpaces);
+  });
+
+  // Handle inject spaces toggle change
+  injectSpacesToggle.addEventListener('change', async () => {
+    const enabled = enableToggle.checked;
+    const autoRun = autoRunToggle.checked;
+    const injectSpaces = injectSpacesToggle.checked;
+    
+    console.log('[KhmerSpaceFixer] Inject spaces toggle changed:', injectSpaces);
+    
+    await saveSettings(enabled, autoRun, injectSpaces);
   });
 
   // Handle fix now button click

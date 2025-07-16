@@ -1,4 +1,4 @@
-// Content Script for Khmer Non-Breaking Space Detector & Corrector
+// Content Script for Khmer Zero Width Space Detector & Corrector
 // Handles DOM manipulation and space replacement
 
 (function() {
@@ -17,9 +17,9 @@
   let totalSpacesFixed = 0;
   let observer = null;
 
-  // Main function to fix non-breaking spaces
-  function fixSpaces() {
-    console.log('[KhmerSpaceFixer] Starting fixSpaces()');
+  // Main function to fix zero width spaces
+  function fixSpaces(injectSpaces = true) {
+    console.log('[KhmerSpaceFixer] Starting fixSpaces() with injectSpaces:', injectSpaces);
     let fixCount = 0;
     const processedNodes = new WeakSet();
 
@@ -52,9 +52,9 @@
             return NodeFilter.FILTER_REJECT;
           }
 
-          // Accept if contains non-breaking space
-          if (node.nodeValue && node.nodeValue.includes('\u00A0')) {
-            console.log('[KhmerSpaceFixer] Found text node with NBSP:', node.nodeValue.substring(0, 50) + '...');
+          // Accept if contains zero width space
+          if (node.nodeValue && node.nodeValue.includes('\u200B')) {
+            console.log('[KhmerSpaceFixer] Found text node with ZWSP:', node.nodeValue.substring(0, 50) + '...');
             return NodeFilter.FILTER_ACCEPT;
           }
 
@@ -69,14 +69,22 @@
     while (node = walker.nextNode()) {
       nodeCount++;
       const originalText = node.nodeValue;
-      const fixedText = originalText.replace(/\u00A0/g, '\u0020');
+      let fixedText;
+      
+      if (injectSpaces) {
+        // Replace ZWSP with regular space
+        fixedText = originalText.replace(/\u200B/g, '\u0020');
+      } else {
+        // Remove ZWSP completely
+        fixedText = originalText.replace(/\u200B/g, '');
+      }
       
       if (originalText !== fixedText) {
         // Count the number of replacements
-        const replacements = (originalText.match(/\u00A0/g) || []).length;
+        const replacements = (originalText.match(/\u200B/g) || []).length;
         fixCount += replacements;
         
-        console.log(`[KhmerSpaceFixer] Fixing ${replacements} NBSPs in text node:`, originalText.substring(0, 50) + '...');
+        console.log(`[KhmerSpaceFixer] ${injectSpaces ? 'Replacing' : 'Removing'} ${replacements} ZWSPs in text node:`, originalText.substring(0, 50) + '...');
         
         // Update the text content
         node.nodeValue = fixedText;
@@ -86,7 +94,7 @@
       }
     }
 
-    console.log(`[KhmerSpaceFixer] Processed ${nodeCount} text nodes, fixed ${fixCount} NBSPs`);
+    console.log(`[KhmerSpaceFixer] Processed ${nodeCount} text nodes, fixed ${fixCount} ZWSPs`);
     totalSpacesFixed += fixCount;
     return fixCount;
   }
@@ -121,18 +129,22 @@
       // Debounce to avoid excessive processing
       clearTimeout(handleMutations.timeout);
       handleMutations.timeout = setTimeout(() => {
-        const count = fixSpaces();
-        if (count > 0) {
-          console.log('[KhmerSpaceFixer] Notifying service worker of new fixes:', totalSpacesFixed);
-          // Notify service worker of new fixes
-          chrome.runtime.sendMessage({
-            action: 'spacesFixed',
-            count: totalSpacesFixed
-          }).catch((error) => {
-            // Service worker might not be available
-            console.log('[KhmerSpaceFixer] Could not send message to service worker:', error);
-          });
-        }
+        // Get current settings before processing
+        chrome.storage.local.get(['injectSpaces'], (result) => {
+          const injectSpaces = result.injectSpaces ?? true;
+          const count = fixSpaces(injectSpaces);
+          if (count > 0) {
+            console.log('[KhmerSpaceFixer] Notifying service worker of new fixes:', totalSpacesFixed);
+            // Notify service worker of new fixes
+            chrome.runtime.sendMessage({
+              action: 'spacesFixed',
+              count: totalSpacesFixed
+            }).catch((error) => {
+              // Service worker might not be available
+              console.log('[KhmerSpaceFixer] Could not send message to service worker:', error);
+            });
+          }
+        });
       }, 100);
     }
   }
@@ -171,30 +183,37 @@
         totalSpacesFixed = 0;
       }
 
-      const count = fixSpaces();
-      console.log('[KhmerSpaceFixer] fixSpaces returned:', count, 'total now:', totalSpacesFixed);
-      
-      // Send count back to service worker
-      chrome.runtime.sendMessage({
-        action: 'spacesFixed',
-        count: totalSpacesFixed
-      }).catch((error) => {
-        console.log('[KhmerSpaceFixer] Could not send message to service worker:', error);
-      });
+      // Get current settings before processing
+      chrome.storage.local.get(['injectSpaces'], (result) => {
+        const injectSpaces = result.injectSpaces ?? true;
+        const count = fixSpaces(injectSpaces);
+        console.log('[KhmerSpaceFixer] fixSpaces returned:', count, 'total now:', totalSpacesFixed);
+        
+        // Send count back to service worker
+        chrome.runtime.sendMessage({
+          action: 'spacesFixed',
+          count: totalSpacesFixed
+        }).catch((error) => {
+          console.log('[KhmerSpaceFixer] Could not send message to service worker:', error);
+        });
 
-      sendResponse({ success: true, count: count });
+        sendResponse({ success: true, count: count });
+      });
+      
+      return true; // Keep message channel open for async response
     }
   });
 
   // Check if extension is enabled before initializing
   console.log('[KhmerSpaceFixer] Checking if extension is enabled...');
-  chrome.storage.local.get(['enabled'], (result) => {
+  chrome.storage.local.get(['enabled', 'injectSpaces'], (result) => {
     console.log('[KhmerSpaceFixer] Storage result:', result);
     if (result.enabled !== false) { // Default to enabled if not set
       console.log('[KhmerSpaceFixer] Extension is enabled, running initial fix');
       
+      const injectSpaces = result.injectSpaces ?? true;
       // Initial fix when content script loads
-      const initialCount = fixSpaces();
+      const initialCount = fixSpaces(injectSpaces);
       console.log('[KhmerSpaceFixer] Initial fix count:', initialCount);
       
       if (initialCount > 0) {
@@ -222,7 +241,10 @@
       if (changes.enabled.newValue) {
         console.log('[KhmerSpaceFixer] Extension re-enabled, running fix and starting observer');
         // Re-enable: fix spaces and start observing
-        fixSpaces();
+        chrome.storage.local.get(['injectSpaces'], (result) => {
+          const injectSpaces = result.injectSpaces ?? true;
+          fixSpaces(injectSpaces);
+        });
         initObserver();
       } else {
         console.log('[KhmerSpaceFixer] Extension disabled, stopping observer');

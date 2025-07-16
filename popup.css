@@ -221,3 +221,34 @@ footer {
 footer p {
     margin: 0;
 }
+
+/* Info Section */
+.info-section {
+    margin-bottom: 20px;
+}
+
+.info-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px;
+    background-color: #e3f2fd;
+    border: 1px solid #bbdefb;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.info-icon {
+    font-size: 14px;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+
+.info-text {
+    color: #1565c0;
+}
+
+.info-text strong {
+    color: #0d47a1;
+}

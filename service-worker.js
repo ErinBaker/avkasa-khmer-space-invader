@@ -6,15 +6,16 @@ console.log('[KhmerSpaceFixer] Service Worker starting...');
 // Default settings
 const DEFAULT_SETTINGS = {
   enabled: true,
-  autoRun: true
+  autoRun: true,
+  injectSpaces: true
 };
 
 // Initialize extension settings on install
 chrome.runtime.onInstalled.addListener(() => {
   console.log('[KhmerSpaceFixer] Extension installed/updated');
-  chrome.storage.local.get(['enabled', 'autoRun'], (result) => {
+  chrome.storage.local.get(['enabled', 'autoRun', 'injectSpaces'], (result) => {
     console.log('[KhmerSpaceFixer] Current settings:', result);
-    if (result.enabled === undefined || result.autoRun === undefined) {
+    if (result.enabled === undefined || result.autoRun === undefined || result.injectSpaces === undefined) {
       console.log('[KhmerSpaceFixer] Setting default settings:', DEFAULT_SETTINGS);
       chrome.storage.local.set(DEFAULT_SETTINGS);
     }
@@ -31,7 +32,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete') {
     console.log(`[KhmerSpaceFixer] Tab ${tabId} finished loading`);
     
-    chrome.storage.local.get(['enabled', 'autoRun'], (result) => {
+    chrome.storage.local.get(['enabled', 'autoRun', 'injectSpaces'], (result) => {
       console.log(`[KhmerSpaceFixer] Settings for tab ${tabId}:`, result);
       
       if (result.enabled && result.autoRun) {
@@ -70,7 +71,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.log('[KhmerSpaceFixer] Updating settings:', request);
       chrome.storage.local.set({
         enabled: request.enabled,
-        autoRun: request.autoRun
+        autoRun: request.autoRun,
+        injectSpaces: request.injectSpaces
       }, () => {
         console.log('[KhmerSpaceFixer] Settings updated successfully');
         sendResponse({ success: true });
@@ -80,10 +82,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case 'getSettings':
       // Retrieve settings for popup
       console.log('[KhmerSpaceFixer] Getting settings for popup');
-      chrome.storage.local.get(['enabled', 'autoRun'], (result) => {
+      chrome.storage.local.get(['enabled', 'autoRun', 'injectSpaces'], (result) => {
         const settings = {
           enabled: result.enabled ?? DEFAULT_SETTINGS.enabled,
-          autoRun: result.autoRun ?? DEFAULT_SETTINGS.autoRun
+          autoRun: result.autoRun ?? DEFAULT_SETTINGS.autoRun,
+          injectSpaces: result.injectSpaces ?? DEFAULT_SETTINGS.injectSpaces
         };
         console.log('[KhmerSpaceFixer] Returning settings:', settings);
         sendResponse(settings);

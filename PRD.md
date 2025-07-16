@@ -1,4 +1,4 @@
-# Product Requirements Document: Khmer Non-Breaking Space Detector & Corrector
+# Product Requirements Document: Khmer Zero Width Space Detector & Corrector
 
 **Document Version:** 1.0  
 **Date:** January 16, 2025  
@@ -8,15 +8,15 @@
 
 ## 1. Executive Summary
 
-The Khmer Space Fixer is a Chrome extension designed to improve the readability and usability of Khmer text on the web by detecting and replacing non-breaking spaces (NBSP, U+00A0) with regular spaces (U+0020). This addresses common issues with text selection, copying, searching, and line-breaking in Khmer digital content.
+The Khmer Space Fixer is a Chrome extension designed to improve the readability and usability of Khmer text on the web by detecting and replacing zero width spaces (ZWSP, U+200B) with regular spaces (U+0020). This addresses common issues with text selection, copying, searching, and line-breaking in Khmer digital content.
 
 ## 2. Problem Statement
 
 ### 2.1 Current Challenges
-- Non-breaking spaces in Khmer text cause improper line breaks and text wrapping
-- Copy-paste operations often preserve NBSPs, causing formatting issues in destination applications
-- Search functionality fails when users search with regular spaces but the text contains NBSPs
-- Many Khmer websites and content creators unknowingly use NBSPs, degrading user experience
+- Zero width spaces in Khmer text cause improper line breaks and text wrapping
+- Copy-paste operations often preserve ZWSPs, causing formatting issues in destination applications
+- Search functionality fails when users search with regular spaces but the text contains ZWSPs
+- Many Khmer websites and content creators unknowingly use ZWSPs, degrading user experience
 
 ### 2.2 Impact
 - Reduced readability of Khmer content online
@@ -31,7 +31,7 @@ The Khmer Space Fixer is a Chrome extension designed to improve the readability 
 3. **Seamless Experience**: Provide automatic detection and correction without user intervention
 
 ### 3.2 Success Metrics
-- 90% reduction in NBSP-related text issues on processed pages
+- 90% reduction in ZWSP-related text issues on processed pages
 - < 100ms impact on page load time
 - 80% user satisfaction rate based on Chrome Web Store reviews
 - 10,000+ active users within 6 months of launch
@@ -59,11 +59,11 @@ The Khmer Space Fixer is a Chrome extension designed to improve the readability 
 ## 5. User Stories
 
 ### 5.1 Core User Stories
-1. As a user, I want NBSPs automatically replaced when I visit a page so that text behaves normally
+1. As a user, I want ZWSPs automatically replaced when I visit a page so that text behaves normally
 2. As a user, I want to see how many spaces were fixed so I know the extension is working
 3. As a user, I want to disable the extension on specific sites where I don't want changes
 4. As a user, I want the extension to work on dynamically loaded content (infinite scroll, AJAX)
-5. As a content creator, I want to check my pages for NBSP issues before publishing
+5. As a content creator, I want to check my pages for ZWSP issues before publishing
 
 ### 5.2 Advanced User Stories
 1. As a power user, I want to manually trigger space fixing on demand
@@ -74,18 +74,18 @@ The Khmer Space Fixer is a Chrome extension designed to improve the readability 
 
 ### 6.1 Core Features
 
-#### 6.1.1 Automatic NBSP Detection
-- **Description**: Scan all text nodes in the DOM for U+00A0 characters
+#### 6.1.1 Automatic ZWSP Detection
+- **Description**: Scan all text nodes in the DOM for U+200B characters
 - **Acceptance Criteria**:
-  - Detects NBSPs in all text content including dynamically loaded
-  - Ignores NBSPs in `<pre>`, `<code>`, and `<script>` tags
+  - Detects ZWSPs in all text content including dynamically loaded
+  - Ignores ZWSPs in `<pre>`, `<code>`, and `<script>` tags
   - Works within iframes (with appropriate permissions)
 
 #### 6.1.2 Smart Replacement
-- **Description**: Replace NBSPs with regular spaces intelligently
+- **Description**: Replace ZWSPs with regular spaces intelligently
 - **Acceptance Criteria**:
-  - Only replaces NBSPs adjacent to Khmer characters (U+1780–U+17FF)
-  - Preserves NBSPs in non-Khmer contexts (e.g., French text)
+  - Only replaces ZWSPs adjacent to Khmer characters (U+1780–U+17FF)
+  - Preserves ZWSPs in non-Khmer contexts where they might be intentional
   - Maintains DOM structure and event listeners
 
 #### 6.1.3 Real-time Processing
@@ -152,19 +152,19 @@ manifest.json (Manifest V3)
 
 ### 7.2 Key Algorithms
 
-#### 7.2.1 NBSP Detection Algorithm
+#### 7.2.1 ZWSP Detection Algorithm
 ```javascript
 // Pseudo-code
 function detectAndReplace(node) {
   if (node.nodeType === Node.TEXT_NODE) {
-    if (containsKhmerAndNBSP(node.textContent)) {
-      node.textContent = replaceNBSP(node.textContent);
+    if (containsKhmerAndZWSP(node.textContent)) {
+      node.textContent = replaceZWSP(node.textContent);
     }
   }
 }
 
-function containsKhmerAndNBSP(text) {
-  return /[\u1780-\u17FF]/.test(text) && /\u00A0/.test(text);
+function containsKhmerAndZWSP(text) {
+  return /[\u1780-\u17FF]/.test(text) && /\u200B/.test(text);
 }
 ```
 
@@ -206,7 +206,7 @@ function containsKhmerAndNBSP(text) {
 ## 9. Development Phases
 
 ### Phase 1: MVP (4 weeks)
-- Basic NBSP detection and replacement
+- Basic ZWSP detection and replacement
 - Simple popup with on/off toggle
 - Manual trigger button
 - Chrome Web Store submission
@@ -227,7 +227,7 @@ function containsKhmerAndNBSP(text) {
 
 ### 10.1 Test Cases
 1. **Basic Functionality**
-   - Verify NBSP detection in various Khmer texts
+   - Verify ZWSP detection in various Khmer texts
    - Confirm replacement preserves meaning
    - Test on major Khmer websites
 
@@ -293,7 +293,7 @@ function containsKhmerAndNBSP(text) {
 - **Mitigation**: Implement progressive processing and user controls
 
 ### 14.2 User Adoption Risks
-- **Risk**: Users unaware of NBSP issues
+- **Risk**: Users unaware of ZWSP issues
 - **Mitigation**: Educational content and clear value proposition
 
 ### 14.3 Maintenance Risks
@@ -305,7 +305,7 @@ function containsKhmerAndNBSP(text) {
 ### Appendix A: Khmer Unicode Reference
 - Khmer Unicode block: U+1780–U+17FF
 - Common Khmer punctuation and spaces
-- NBSP (U+00A0) vs Regular Space (U+0020)
+- ZWSP (U+200B) vs Regular Space (U+0020)
 
 ### Appendix B: Competitor Analysis
 - Similar extensions for other languages

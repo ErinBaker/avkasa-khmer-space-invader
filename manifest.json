@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Khmer Non-Breaking Space Detector & Corrector",
+  "name": "Avkasa Khmer Zero Space",
   "version": "1.0.0",
-  "description": "Detects and replaces non-breaking spaces with regular spaces to improve Khmer text readability and functionality",
+  "description": "អវកាសខ្មែរ Avkasa Khmer - Detects and replaces zero width spaces with regular spaces to improve Khmer text readability for language learners.",
   "permissions": [
     "activeTab",
     "scripting",
