@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Khmer Space Fixer</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="popup-container">
+        <header>
+            <h1>Khmer Space Fixer</h1>
+        </header>
+        
+        <main>
+            <!-- Status Section -->
+            <div class="status-section">
+                <div class="status-indicator" id="statusIndicator">
+                    <span class="status-dot"></span>
+                    <span class="status-text" id="statusText">Extension is Active</span>
+                </div>
+                <div class="space-count" id="spaceCount">Spaces fixed: 0</div>
+            </div>
+
+            <!-- Settings Section -->
+            <div class="settings-section">
+                <!-- Enable/Disable Toggle -->
+                <div class="setting-item">
+                    <label class="toggle-label">
+                        <span>Enable Extension</span>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="enableToggle" checked>
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </label>
+                </div>
+
+                <!-- Auto-run Toggle -->
+                <div class="setting-item">
+                    <label class="toggle-label">
+                        <span>Auto-run on page load</span>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="autoRunToggle" checked>
+                            <span class="toggle-slider"></span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Action Section -->
+            <div class="action-section">
+                <button id="fixNowButton" class="fix-button">
+                    <span class="button-icon">🔧</span>
+                    Fix Spaces Now
+                </button>
+            </div>
+        </main>
+
+        <footer>
+            <p>Improving Khmer text readability</p>
+        </footer>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>
