@@ -4,41 +4,35 @@
 (function() {
   'use strict';
 
-  console.log('[KhmerSpaceFixer] Content script starting...');
-
   // Track if we've already initialized to avoid duplicate observers
   if (window.__khmerSpaceFixerInitialized) {
-    console.log('[KhmerSpaceFixer] Content script already initialized, skipping...');
     return;
   }
   window.__khmerSpaceFixerInitialized = true;
-  console.log('[KhmerSpaceFixer] Content script initialized');
+  console.log('[Avkasa Khmer] Extension enabled');
 
   let totalSpacesFixed = 0;
   let observer = null;
+  let lastProcessingMode = null; // Track last processing mode to enable reversal
+  
+  // Track modified nodes and their original content for reversibility
+  const modifiedNodes = new WeakMap(); // node -> { originalText, modificationType, currentState }
 
   // Main function to fix zero width spaces
   function fixSpaces(injectSpaces = true) {
-    console.log('[KhmerSpaceFixer] Starting fixSpaces() with injectSpaces:', injectSpaces);
     let fixCount = 0;
-    const processedNodes = new WeakSet();
 
     if (!document.body) {
-      console.log('[KhmerSpaceFixer] No document.body found, skipping');
+      console.log('[Avkasa Khmer] Failed - no document body found');
       return 0;
     }
 
-    // Create tree walker to efficiently traverse text nodes
+    // Create tree walker to efficiently traverse ALL text nodes
     const walker = document.createTreeWalker(
       document.body,
       NodeFilter.SHOW_TEXT,
       {
         acceptNode: function(node) {
-          // Skip if already processed
-          if (processedNodes.has(node)) {
-            return NodeFilter.FILTER_REJECT;
-          }
-
           // Skip script, style, and code elements
           const parent = node.parentElement;
           if (parent && (
@@ -52,9 +46,8 @@
             return NodeFilter.FILTER_REJECT;
           }
 
-          // Accept if contains zero width space
-          if (node.nodeValue && node.nodeValue.includes('\u200B')) {
-            console.log('[KhmerSpaceFixer] Found text node with ZWSP:', node.nodeValue.substring(0, 50) + '...');
+          // Accept all text nodes with content for potential processing
+          if (node.nodeValue && node.nodeValue.trim()) {
             return NodeFilter.FILTER_ACCEPT;
           }
 
@@ -68,40 +61,74 @@
     let node;
     while (node = walker.nextNode()) {
       nodeCount++;
-      const originalText = node.nodeValue;
-      let fixedText;
+      const currentText = node.nodeValue;
+      let newText = currentText;
+      let changesMade = false;
       
-      if (injectSpaces) {
-        // Replace ZWSP with regular space
-        fixedText = originalText.replace(/\u200B/g, '\u0020');
+      // Check if this node was previously modified
+      const nodeData = modifiedNodes.get(node);
+      
+      if (nodeData) {
+        if (injectSpaces && nodeData.currentState === 'removed') {
+          // Switch from removed to injected spaces
+          newText = nodeData.originalText.replace(/\u200B/g, '\u0020');
+          changesMade = true;
+          nodeData.currentState = 'injected';
+          const replacements = (nodeData.originalText.match(/\u200B/g) || []).length;
+          fixCount += replacements;
+        } else if (!injectSpaces && nodeData.currentState === 'injected') {
+          // Switch from injected spaces to removed
+          newText = nodeData.originalText.replace(/\u200B/g, '');
+          changesMade = true;
+          nodeData.currentState = 'removed';
+          const removals = (nodeData.originalText.match(/\u200B/g) || []).length;
+          fixCount += removals;
+        }
       } else {
-        // Remove ZWSP completely
-        fixedText = originalText.replace(/\u200B/g, '');
+        // New node - check for ZWSP
+        if (currentText.includes('\u200B')) {
+          // Store original text for future toggles
+          const originalData = {
+            originalText: currentText,
+            modificationType: 'zwsp_processing',
+            currentState: injectSpaces ? 'injected' : 'removed'
+          };
+          
+          if (injectSpaces) {
+            // Replace ZWSP with regular space
+            newText = currentText.replace(/\u200B/g, '\u0020');
+            const replacements = (currentText.match(/\u200B/g) || []).length;
+            fixCount += replacements;
+          } else {
+            // Remove ZWSP completely
+            newText = currentText.replace(/\u200B/g, '');
+            const removals = (currentText.match(/\u200B/g) || []).length;
+            fixCount += removals;
+          }
+          
+          changesMade = true;
+          modifiedNodes.set(node, originalData);
+        }
       }
       
-      if (originalText !== fixedText) {
-        // Count the number of replacements
-        const replacements = (originalText.match(/\u200B/g) || []).length;
-        fixCount += replacements;
-        
-        console.log(`[KhmerSpaceFixer] ${injectSpaces ? 'Replacing' : 'Removing'} ${replacements} ZWSPs in text node:`, originalText.substring(0, 50) + '...');
-        
+      if (changesMade) {
         // Update the text content
-        node.nodeValue = fixedText;
-        
-        // Mark as processed
-        processedNodes.add(node);
+        node.nodeValue = newText;
       }
     }
+    
+    // Update last processing mode for next toggle
+    lastProcessingMode = injectSpaces;
 
-    console.log(`[KhmerSpaceFixer] Processed ${nodeCount} text nodes, fixed ${fixCount} ZWSPs`);
     totalSpacesFixed += fixCount;
+    if (fixCount > 0) {
+      console.log(`[Avkasa Khmer] Spaces ${injectSpaces ? 'injected' : 'removed'} successfully - ${fixCount} changes`);
+    }
     return fixCount;
   }
 
   // Function to handle mutations
   function handleMutations(mutations) {
-    console.log('[KhmerSpaceFixer] MutationObserver triggered with', mutations.length, 'mutations');
     let shouldFix = false;
 
     for (const mutation of mutations) {
@@ -110,14 +137,11 @@
         for (const node of mutation.addedNodes) {
           if (node.nodeType === Node.TEXT_NODE || 
               (node.nodeType === Node.ELEMENT_NODE && node.textContent)) {
-            console.log('[KhmerSpaceFixer] Found added node with text content');
             shouldFix = true;
             break;
           }
         }
       } else if (mutation.type === 'characterData') {
-        // Text content changed
-        console.log('[KhmerSpaceFixer] Character data changed');
         shouldFix = true;
       }
 
@@ -125,7 +149,6 @@
     }
 
     if (shouldFix) {
-      console.log('[KhmerSpaceFixer] Scheduling delayed fix spaces due to mutations');
       // Debounce to avoid excessive processing
       clearTimeout(handleMutations.timeout);
       handleMutations.timeout = setTimeout(() => {
@@ -134,14 +157,12 @@
           const injectSpaces = result.injectSpaces ?? true;
           const count = fixSpaces(injectSpaces);
           if (count > 0) {
-            console.log('[KhmerSpaceFixer] Notifying service worker of new fixes:', totalSpacesFixed);
             // Notify service worker of new fixes
             chrome.runtime.sendMessage({
               action: 'spacesFixed',
               count: totalSpacesFixed
-            }).catch((error) => {
+            }).catch(() => {
               // Service worker might not be available
-              console.log('[KhmerSpaceFixer] Could not send message to service worker:', error);
             });
           }
         });
@@ -151,9 +172,7 @@
 
   // Initialize MutationObserver for dynamic content
   function initObserver() {
-    console.log('[KhmerSpaceFixer] Initializing MutationObserver');
     if (observer) {
-      console.log('[KhmerSpaceFixer] Disconnecting existing observer');
       observer.disconnect();
     }
 
@@ -166,20 +185,14 @@
         characterData: true,
         characterDataOldValue: false
       });
-      console.log('[KhmerSpaceFixer] MutationObserver started');
-    } else {
-      console.log('[KhmerSpaceFixer] No document.body found, cannot start observer');
     }
   }
 
   // Listen for messages from service worker
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log('[KhmerSpaceFixer] Content script received message:', request);
-    
     if (request.action === 'fixSpaces') {
       // Reset count if manual fix
       if (request.manual) {
-        console.log('[KhmerSpaceFixer] Manual fix - resetting count');
         totalSpacesFixed = 0;
       }
 
@@ -187,15 +200,12 @@
       chrome.storage.local.get(['injectSpaces'], (result) => {
         const injectSpaces = result.injectSpaces ?? true;
         const count = fixSpaces(injectSpaces);
-        console.log('[KhmerSpaceFixer] fixSpaces returned:', count, 'total now:', totalSpacesFixed);
         
         // Send count back to service worker
         chrome.runtime.sendMessage({
           action: 'spacesFixed',
           count: totalSpacesFixed
-        }).catch((error) => {
-          console.log('[KhmerSpaceFixer] Could not send message to service worker:', error);
-        });
+        }).catch(() => {});
 
         sendResponse({ success: true, count: count });
       });
@@ -205,61 +215,72 @@
   });
 
   // Check if extension is enabled before initializing
-  console.log('[KhmerSpaceFixer] Checking if extension is enabled...');
   chrome.storage.local.get(['enabled', 'injectSpaces'], (result) => {
-    console.log('[KhmerSpaceFixer] Storage result:', result);
     if (result.enabled !== false) { // Default to enabled if not set
-      console.log('[KhmerSpaceFixer] Extension is enabled, running initial fix');
-      
       const injectSpaces = result.injectSpaces ?? true;
+      
       // Initial fix when content script loads
       const initialCount = fixSpaces(injectSpaces);
-      console.log('[KhmerSpaceFixer] Initial fix count:', initialCount);
       
-      if (initialCount > 0) {
-        console.log('[KhmerSpaceFixer] Notifying service worker of initial fixes');
-        // Notify service worker
-        chrome.runtime.sendMessage({
-          action: 'spacesFixed',
-          count: totalSpacesFixed
-        }).catch((error) => {
-          console.log('[KhmerSpaceFixer] Could not send message to service worker:', error);
-        });
-      }
+      // Always notify service worker to update badge
+      chrome.runtime.sendMessage({
+        action: 'spacesFixed',
+        count: totalSpacesFixed
+      }).catch(() => {});
 
       // Start observing for changes
       initObserver();
-    } else {
-      console.log('[KhmerSpaceFixer] Extension is disabled');
     }
   });
 
   // Listen for storage changes to enable/disable
   chrome.storage.onChanged.addListener((changes, namespace) => {
-    console.log('[KhmerSpaceFixer] Storage changed:', changes, 'namespace:', namespace);
-    if (namespace === 'local' && changes.enabled) {
-      if (changes.enabled.newValue) {
-        console.log('[KhmerSpaceFixer] Extension re-enabled, running fix and starting observer');
-        // Re-enable: fix spaces and start observing
-        chrome.storage.local.get(['injectSpaces'], (result) => {
-          const injectSpaces = result.injectSpaces ?? true;
-          fixSpaces(injectSpaces);
-        });
-        initObserver();
-      } else {
-        console.log('[KhmerSpaceFixer] Extension disabled, stopping observer');
-        // Disable: stop observing
-        if (observer) {
-          observer.disconnect();
-          observer = null;
+    if (namespace === 'local') {
+      // Handle enabled/disabled changes
+      if (changes.enabled) {
+        if (changes.enabled.newValue) {
+          console.log('[Avkasa Khmer] Extension enabled');
+          // Re-enable: fix spaces and start observing
+          chrome.storage.local.get(['injectSpaces'], (result) => {
+            const injectSpaces = result.injectSpaces ?? true;
+            fixSpaces(injectSpaces);
+          });
+          initObserver();
+        } else {
+          console.log('[Avkasa Khmer] Extension disabled');
+          // Disable: stop observing
+          if (observer) {
+            observer.disconnect();
+            observer = null;
+          }
         }
+      }
+      
+      // Handle injectSpaces setting changes
+      if (changes.injectSpaces) {
+        const newSetting = changes.injectSpaces.newValue;
+        console.log(`[Avkasa Khmer] Spaces toggle ${newSetting ? 'on' : 'off'}`);
+        
+        // Check if extension is enabled before reprocessing
+        chrome.storage.local.get(['enabled'], (result) => {
+          if (result.enabled !== false) {
+            // Reset count for new processing
+            totalSpacesFixed = 0;
+            const count = fixSpaces(newSetting);
+            
+            // Always notify service worker to update badge
+            chrome.runtime.sendMessage({
+              action: 'spacesFixed',
+              count: totalSpacesFixed
+            }).catch(() => {});
+          }
+        });
       }
     }
   });
 
   // Clean up on unload
   window.addEventListener('unload', () => {
-    console.log('[KhmerSpaceFixer] Page unloading, cleaning up');
     if (observer) {
       observer.disconnect();
     }
