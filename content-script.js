@@ -4,12 +4,14 @@
 (function() {
   'use strict';
 
+  // Create a unique symbol for initialization tracking to avoid conflicts
+  const INIT_SYMBOL = Symbol('avkasa-khmer-initialized');
+  
   // Track if we've already initialized to avoid duplicate observers
-  if (window.__khmerSpaceFixerInitialized) {
+  if (document.documentElement[INIT_SYMBOL]) {
     return;
   }
-  window.__khmerSpaceFixerInitialized = true;
-  console.log('[Avkasa Khmer] Extension enabled');
+  document.documentElement[INIT_SYMBOL] = true;
 
   let totalSpacesFixed = 0;
   let observer = null;
@@ -121,9 +123,6 @@
     lastProcessingMode = injectSpaces;
 
     totalSpacesFixed += fixCount;
-    if (fixCount > 0) {
-      console.log(`[Avkasa Khmer] Spaces ${injectSpaces ? 'injected' : 'removed'} successfully - ${fixCount} changes`);
-    }
     return fixCount;
   }
 
@@ -188,94 +187,175 @@
     }
   }
 
+  // Validate incoming messages
+  function validateMessage(request, sender) {
+    // Check if request is valid object with action
+    if (!request || typeof request !== 'object' || typeof request.action !== 'string') {
+      return false;
+    }
+    
+    // Validate sender - should be from extension
+    if (!sender || !sender.id || sender.id !== chrome.runtime.id) {
+      return false;
+    }
+    
+    return true;
+  }
+
   // Listen for messages from service worker
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'fixSpaces') {
-      // Reset count if manual fix
-      if (request.manual) {
-        totalSpacesFixed = 0;
+    try {
+      // Validate message and sender
+      if (!validateMessage(request, sender)) {
+        console.warn('[Avkasa Khmer] Invalid message received in content script');
+        sendResponse({ error: 'Invalid message format' });
+        return false;
       }
-
-      // Get current settings before processing
-      chrome.storage.local.get(['injectSpaces'], (result) => {
-        const injectSpaces = result.injectSpaces ?? true;
-        const count = fixSpaces(injectSpaces);
-        
-        // Send count back to service worker
-        chrome.runtime.sendMessage({
-          action: 'spacesFixed',
-          count: totalSpacesFixed
-        }).catch(() => {});
-
-        sendResponse({ success: true, count: count });
-      });
       
-      return true; // Keep message channel open for async response
+      if (request.action === 'fixSpaces') {
+        // Validate manual flag
+        if (request.manual !== undefined && typeof request.manual !== 'boolean') {
+          sendResponse({ error: 'Invalid manual flag' });
+          return false;
+        }
+        
+        // Reset count if manual fix
+        if (request.manual) {
+          totalSpacesFixed = 0;
+        }
+
+        // Get current settings before processing
+        chrome.storage.local.get(['injectSpaces'], (result) => {
+          if (chrome.runtime.lastError) {
+            sendResponse({ error: chrome.runtime.lastError.message });
+            return;
+          }
+          
+          const injectSpaces = result.injectSpaces ?? true;
+          const count = fixSpaces(injectSpaces);
+          
+          // Send count back to service worker
+          chrome.runtime.sendMessage({
+            action: 'spacesFixed',
+            count: totalSpacesFixed
+          }).catch(() => {});
+
+          sendResponse({ success: true, count: count });
+        });
+        
+        return true; // Keep message channel open for async response
+      } else {
+        sendResponse({ error: 'Unknown action' });
+        return false;
+      }
+    } catch (error) {
+      console.error('[Avkasa Khmer] Error handling message in content script:', error);
+      sendResponse({ error: 'Internal error' });
+      return false;
     }
   });
 
-  // Check if extension is enabled before initializing
-  chrome.storage.local.get(['enabled', 'injectSpaces'], (result) => {
-    if (result.enabled !== false) { // Default to enabled if not set
-      const injectSpaces = result.injectSpaces ?? true;
+  // Check if extension is enabled and auto-run is enabled before initializing
+  chrome.storage.local.get(['enabled', 'autoRun', 'injectSpaces'], (result) => {
+    try {
+      if (chrome.runtime.lastError) {
+        console.error('[Avkasa Khmer] Storage error during initialization:', chrome.runtime.lastError);
+        return;
+      }
       
-      // Initial fix when content script loads
-      const initialCount = fixSpaces(injectSpaces);
-      
-      // Always notify service worker to update badge
-      chrome.runtime.sendMessage({
-        action: 'spacesFixed',
-        count: totalSpacesFixed
-      }).catch(() => {});
+      if (result.enabled !== false) { // Default to enabled if not set
+        const autoRun = result.autoRun ?? true; // Default to true if not set
+        const injectSpaces = result.injectSpaces ?? true;
+        
+        // Only run initial fix if auto-run is enabled
+        if (autoRun) {
+          // Initial fix when content script loads
+          const initialCount = fixSpaces(injectSpaces);
+          
+          // Always notify service worker to update badge
+          chrome.runtime.sendMessage({
+            action: 'spacesFixed',
+            count: totalSpacesFixed
+          }).catch((error) => {
+            console.warn('[Avkasa Khmer] Failed to notify service worker:', error);
+          });
 
-      // Start observing for changes
-      initObserver();
+          // Start observing for changes
+          initObserver();
+        }
+      }
+    } catch (error) {
+      console.error('[Avkasa Khmer] Error during initialization:', error);
     }
   });
 
   // Listen for storage changes to enable/disable
   chrome.storage.onChanged.addListener((changes, namespace) => {
-    if (namespace === 'local') {
-      // Handle enabled/disabled changes
-      if (changes.enabled) {
-        if (changes.enabled.newValue) {
-          console.log('[Avkasa Khmer] Extension enabled');
-          // Re-enable: fix spaces and start observing
-          chrome.storage.local.get(['injectSpaces'], (result) => {
-            const injectSpaces = result.injectSpaces ?? true;
-            fixSpaces(injectSpaces);
-          });
-          initObserver();
-        } else {
-          console.log('[Avkasa Khmer] Extension disabled');
-          // Disable: stop observing
-          if (observer) {
-            observer.disconnect();
-            observer = null;
+    try {
+      if (namespace === 'local') {
+        // Handle enabled/disabled changes
+        if (changes.enabled) {
+          if (changes.enabled.newValue) {
+            // Re-enable: fix spaces and start observing
+            chrome.storage.local.get(['injectSpaces'], (result) => {
+              try {
+                if (chrome.runtime.lastError) {
+                  console.error('[Avkasa Khmer] Storage error during re-enable:', chrome.runtime.lastError);
+                  return;
+                }
+                const injectSpaces = result.injectSpaces ?? true;
+                fixSpaces(injectSpaces);
+              } catch (error) {
+                console.error('[Avkasa Khmer] Error during re-enable:', error);
+              }
+            });
+            initObserver();
+          } else {
+            // Disable: stop observing
+            try {
+              if (observer) {
+                observer.disconnect();
+                observer = null;
+              }
+            } catch (error) {
+              console.error('[Avkasa Khmer] Error disabling observer:', error);
+            }
           }
         }
-      }
-      
-      // Handle injectSpaces setting changes
-      if (changes.injectSpaces) {
-        const newSetting = changes.injectSpaces.newValue;
-        console.log(`[Avkasa Khmer] Spaces toggle ${newSetting ? 'on' : 'off'}`);
         
-        // Check if extension is enabled before reprocessing
-        chrome.storage.local.get(['enabled'], (result) => {
-          if (result.enabled !== false) {
-            // Reset count for new processing
-            totalSpacesFixed = 0;
-            const count = fixSpaces(newSetting);
-            
-            // Always notify service worker to update badge
-            chrome.runtime.sendMessage({
-              action: 'spacesFixed',
-              count: totalSpacesFixed
-            }).catch(() => {});
-          }
-        });
+        // Handle injectSpaces setting changes
+        if (changes.injectSpaces) {
+          const newSetting = changes.injectSpaces.newValue;
+          
+          // Check if extension is enabled before reprocessing
+          chrome.storage.local.get(['enabled'], (result) => {
+            try {
+              if (chrome.runtime.lastError) {
+                console.error('[Avkasa Khmer] Storage error during toggle:', chrome.runtime.lastError);
+                return;
+              }
+              
+              if (result.enabled !== false) {
+                // Reset count for new processing
+                totalSpacesFixed = 0;
+                const count = fixSpaces(newSetting);
+                
+                // Always notify service worker to update badge
+                chrome.runtime.sendMessage({
+                  action: 'spacesFixed',
+                  count: totalSpacesFixed
+                }).catch((error) => {
+                  console.warn('[Avkasa Khmer] Failed to notify service worker during toggle:', error);
+                });
+              }
+            } catch (error) {
+              console.error('[Avkasa Khmer] Error during toggle processing:', error);
+            }
+          });
+        }
       }
+    } catch (error) {
+      console.error('[Avkasa Khmer] Error in storage change listener:', error);
     }
   });
 

@@ -3,6 +3,7 @@
   "name": "Avkasa Khmer Zero Space",
   "version": "1.0.0",
   "description": "អវកាសខ្មែរ Avkasa Khmer - Detects and replaces zero width spaces with regular spaces to improve Khmer text readability for language learners.",
+  "author": "Erin",
   "permissions": [
     "activeTab",
     "scripting",
@@ -31,5 +32,8 @@
       "js": ["content-script.js"],
       "run_at": "document_end"
     }
-  ]
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; base-uri 'self';"
+  }
 }

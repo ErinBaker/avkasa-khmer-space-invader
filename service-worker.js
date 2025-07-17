@@ -11,8 +11,23 @@ const DEFAULT_SETTINGS = {
 // Initialize extension settings on install
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.get(['enabled', 'autoRun', 'injectSpaces'], (result) => {
-    if (result.enabled === undefined || result.autoRun === undefined || result.injectSpaces === undefined) {
-      chrome.storage.local.set(DEFAULT_SETTINGS);
+    if (chrome.runtime.lastError) {
+      console.error('[Avkasa Khmer] Storage error during initialization:', chrome.runtime.lastError);
+      return;
+    }
+    
+    // Only set defaults for undefined values to avoid overwriting existing settings
+    const updates = {};
+    if (result.enabled === undefined) updates.enabled = DEFAULT_SETTINGS.enabled;
+    if (result.autoRun === undefined) updates.autoRun = DEFAULT_SETTINGS.autoRun;
+    if (result.injectSpaces === undefined) updates.injectSpaces = DEFAULT_SETTINGS.injectSpaces;
+    
+    if (Object.keys(updates).length > 0) {
+      chrome.storage.local.set(updates, () => {
+        if (chrome.runtime.lastError) {
+          console.error('[Avkasa Khmer] Failed to set default settings:', chrome.runtime.lastError);
+        }
+      });
     }
   });
 });
@@ -24,6 +39,11 @@ const tabSpaceCounts = new Map();
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === 'complete') {
     chrome.storage.local.get(['enabled', 'autoRun', 'injectSpaces'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('[Avkasa Khmer] Storage error during tab update:', chrome.runtime.lastError);
+        return;
+      }
+      
       if (result.enabled && result.autoRun) {
         // Execute content script if not already injected
         chrome.scripting.executeScript({
@@ -43,24 +63,62 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   }
 });
 
+// Validate message structure and sender
+function validateMessage(request, sender) {
+  // Check if request is valid object with action
+  if (!request || typeof request !== 'object' || typeof request.action !== 'string') {
+    return false;
+  }
+  
+  // Validate sender - should be from extension context
+  if (!sender || (!sender.tab && !sender.url?.startsWith('chrome-extension://'))) {
+    return false;
+  }
+  
+  return true;
+}
+
 // Handle messages from popup and content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  
-  switch (request.action) {
+  try {
+    // Validate message and sender
+    if (!validateMessage(request, sender)) {
+      console.warn('[Avkasa Khmer] Invalid message received');
+      sendResponse({ error: 'Invalid message format' });
+      return false;
+    }
+    
+    switch (request.action) {
     case 'updateSettings':
-      // Update settings from popup
+      // Update settings from popup - validate input
+      if (typeof request.enabled !== 'boolean' || 
+          typeof request.autoRun !== 'boolean' || 
+          typeof request.injectSpaces !== 'boolean') {
+        sendResponse({ error: 'Invalid settings format' });
+        return false;
+      }
+      
       chrome.storage.local.set({
         enabled: request.enabled,
         autoRun: request.autoRun,
         injectSpaces: request.injectSpaces
       }, () => {
-        sendResponse({ success: true });
+        if (chrome.runtime.lastError) {
+          sendResponse({ error: chrome.runtime.lastError.message });
+        } else {
+          sendResponse({ success: true });
+        }
       });
       return true; // Keep message channel open for async response
 
     case 'getSettings':
       // Retrieve settings for popup
       chrome.storage.local.get(['enabled', 'autoRun', 'injectSpaces'], (result) => {
+        if (chrome.runtime.lastError) {
+          sendResponse({ error: chrome.runtime.lastError.message });
+          return;
+        }
+        
         const settings = {
           enabled: result.enabled ?? DEFAULT_SETTINGS.enabled,
           autoRun: result.autoRun ?? DEFAULT_SETTINGS.autoRun,
@@ -100,18 +158,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
 
     case 'spacesFixed':
-      // Receive count from content script
+      // Receive count from content script - validate input
+      if (typeof request.count !== 'number' || request.count < 0 || !Number.isInteger(request.count)) {
+        sendResponse({ error: 'Invalid count format' });
+        return false;
+      }
+      
       if (sender.tab) {
         tabSpaceCounts.set(sender.tab.id, request.count);
         
-        // Update badge to show count
+        // Update badge to show active indicator
         if (request.count > 0) {
           chrome.action.setBadgeText({
-            text: request.count.toString(),
+            text: ' ',
             tabId: sender.tab.id
           });
           chrome.action.setBadgeBackgroundColor({
-            color: '#4CAF50',
+            color: '#00FF00',
             tabId: sender.tab.id
           });
         }
@@ -133,6 +196,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       
     default:
       // Unknown action
+      sendResponse({ error: 'Unknown action' });
+      return false;
+  }
+  } catch (error) {
+    console.error('[Avkasa Khmer] Error handling message:', error);
+    sendResponse({ error: 'Internal error' });
+    return false;
   }
 });
 

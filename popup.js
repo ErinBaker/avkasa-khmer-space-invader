@@ -1,10 +1,7 @@
-// Popup script for Khmer Non-Breaking Space Detector & Corrector
+// Popup script for Avkasa Khmer Zero Space
 // Handles UI interactions and communication with service worker
 
-console.log('[KhmerSpaceFixer] Popup script starting...');
-
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('[KhmerSpaceFixer] Popup DOM loaded');
   
   // Get UI elements
   const enableToggle = document.getElementById('enableToggle');
@@ -18,15 +15,32 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load current settings
   async function loadSettings() {
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ action: 'getSettings' }, (response) => {
-        if (response) {
-          enableToggle.checked = response.enabled;
-          autoRunToggle.checked = response.autoRun;
-          injectSpacesToggle.checked = response.injectSpaces;
-          updateStatus(response.enabled);
-        }
+      try {
+        chrome.runtime.sendMessage({ action: 'getSettings' }, (response) => {
+          try {
+            if (chrome.runtime.lastError) {
+              console.error('[Avkasa Khmer] Error loading settings:', chrome.runtime.lastError);
+              resolve();
+              return;
+            }
+            
+            if (response && !response.error) {
+              enableToggle.checked = response.enabled;
+              autoRunToggle.checked = response.autoRun;
+              injectSpacesToggle.checked = response.injectSpaces;
+              updateStatus(response.enabled);
+            } else {
+              console.error('[Avkasa Khmer] Invalid settings response:', response);
+            }
+          } catch (error) {
+            console.error('[Avkasa Khmer] Error processing settings response:', error);
+          }
+          resolve();
+        });
+      } catch (error) {
+        console.error('[Avkasa Khmer] Error sending settings request:', error);
         resolve();
-      });
+      }
     });
   }
 
@@ -62,14 +76,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Save settings
   async function saveSettings(enabled, autoRun, injectSpaces) {
     return new Promise((resolve) => {
-      chrome.runtime.sendMessage({
-        action: 'updateSettings',
-        enabled: enabled,
-        autoRun: autoRun,
-        injectSpaces: injectSpaces
-      }, () => {
+      try {
+        chrome.runtime.sendMessage({
+          action: 'updateSettings',
+          enabled: enabled,
+          autoRun: autoRun,
+          injectSpaces: injectSpaces
+        }, (response) => {
+          try {
+            if (chrome.runtime.lastError) {
+              console.error('[Avkasa Khmer] Error saving settings:', chrome.runtime.lastError);
+            } else if (response && response.error) {
+              console.error('[Avkasa Khmer] Settings save failed:', response.error);
+            }
+          } catch (error) {
+            console.error('[Avkasa Khmer] Error processing save response:', error);
+          }
+          resolve();
+        });
+      } catch (error) {
+        console.error('[Avkasa Khmer] Error sending save request:', error);
         resolve();
-      });
+      }
     });
   }
 
