@@ -107,7 +107,7 @@ Avkasa Khmer Zero Space/
 ├── popup.html            # Extension popup interface
 ├── popup.js              # Popup logic and communication
 ├── popup.css             # Cosmic-themed styling
-└── icon.png              # Extension icon
+└── space-invaders-*.png  # Extension icons
 ```
 
 ### Key Components
