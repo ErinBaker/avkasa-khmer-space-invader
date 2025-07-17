@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Avkasa Khmer Zero Space",
+  "name": "Avkasa Khmer: Space Invader",
   "version": "1.0.0",
-  "description": "អវកាសខ្មែរ Avkasa Khmer - Detects and replaces zero width spaces with regular spaces to improve Khmer text readability for language learners.",
-  "author": "Erin",
+  "description": "អវកាសខ្មែរ: Detects and replaces zero width spaces with regular spaces to improve Khmer text readability for language learners.",
+  "author": "Erin Baker",
   "permissions": [
     "activeTab",
     "scripting",
@@ -16,15 +16,15 @@
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "icon.png",
-      "48": "icon.png",
-      "128": "icon.png"
+      "16": "space-invaders-16.png",
+      "48": "space-invaders-48.png",
+      "128": "space-invaders-128.png"
     }
   },
   "icons": {
-    "16": "icon.png",
-    "48": "icon.png",
-    "128": "icon.png"
+    "16": "space-invaders-16.png",
+    "48": "space-invaders-48.png",
+    "128": "space-invaders-128.png"
   },
   "content_scripts": [
     {
