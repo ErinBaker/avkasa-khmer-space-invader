@@ -100,7 +100,7 @@ Zero-width spaces in Khmer text can cause:
 
 ### Architecture
 ```
-Avkasa Khmer Zero Space/
+Avkasa Khmer Space Invader/
 ├── manifest.json          # Extension configuration
 ├── service-worker.js      # Background script and settings management  
 ├── content-script.js      # DOM processing and text manipulation
@@ -177,14 +177,6 @@ Avkasa Khmer Zero Space/
 - **Content Isolation**: Processing isolated from page scripts
 - **Error Boundaries**: Comprehensive error handling prevents crashes
 
-## 🎨 Design Philosophy
-
-The extension features a **cosmic/space theme** reflecting the "space" concept in "zero-width space":
-- Deep space color palette (navy, cyan, cosmic purple)
-- Animated status indicators with pulsing effects
-- Clean, minimal interface focused on functionality
-- High contrast for accessibility
-
 ## 🔧 Development
 
 ### Project Structure
@@ -236,6 +228,6 @@ You are free to use, modify, and distribute this software for any purpose, inclu
 
 ---
 
-**Author**: Erin Baker
+**Author**: Erin Baker  
 **Version**: 1.0.0  
 **Compatibility**: Chrome 88+ (Manifest V3)
